@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAVI TRAVELLERS V7 - WILDLIFE UPDATE</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#050b08;color:white;font-family:Arial,sans-serif}
+header{padding:18px;text-align:center;background:#07150e;border-bottom:1px solid #20ff76}
+header h1{color:#28ff7b;margin:0;font-size:27px}
+header p{color:#a6ffbd;margin:7px 0 0}
+main{max-width:1100px;margin:auto;padding:16px}
+h2{color:#39ff85}
+.destinations{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.destination{background:#10251a;border:1px solid #24583a;border-radius:12px;padding:13px;color:white;cursor:pointer;font-weight:bold;text-align:left;min-height:48px}
+.destination.active,.destination:hover{background:#16763c;border-color:#48ff8b}
+#viewer{height:460px;background:#111;border:2px solid #25ff78;border-radius:15px;overflow:hidden;position:relative;margin-top:15px}
+#world{width:100%;height:100%;display:block;touch-action:none}
+#info{position:absolute;top:12px;left:12px;background:#00190dcc;padding:10px 13px;border-radius:10px;max-width:78%;pointer-events:none}
+#info h2{margin:0 0 5px}
+#info p{margin:0;font-size:13px;line-height:1.4}
+.controls{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}
+button{background:#123b24;color:white;border:1px solid #31ff80;padding:12px;border-radius:9px;cursor:pointer}
+button:hover{background:#197b3d}
+#vrStatus{margin:4px 0 12px;padding:9px 11px;background:#0b2015;border:1px solid #24583a;border-radius:9px;line-height:1.45}
+#joystick{display:flex;justify-content:center;gap:12px;margin:12px}
+#joystick button{width:65px;height:52px;font-size:20px;touch-action:none}
+.small{color:#a6bbaa;font-size:12px}
+#guide{background:#10251a;border:1px solid #31ff80;border-radius:12px;padding:13px;margin-top:12px}
+#guide strong{color:#45ff8c}
+#wildlifeTag{position:absolute;right:12px;bottom:12px;background:#00190dcc;color:#d9ffe5;border:1px solid #45ff8c;border-radius:9px;padding:8px 10px;font-size:12px;pointer-events:none;max-width:55%;text-align:right}
+@media(max-width:700px){.destinations{grid-template-columns:repeat(2,1fr)}#viewer{height:390px}}
+@media(min-width:701px) and (max-width:950px){.destinations{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<header>
+<h1>🌍 PAVI TRAVELLERS</h1>
+<p>THE WORLD IS JUST A HEADSET AWAY!</p>
+</header>
+<main>
+<h2>Choose Your Destination <span class="small" id="count"></span></h2>
+<div class="destinations" id="destinations"></div>
+<div id="viewer">
+<canvas id="world"></canvas>
+<div id="info"><h2 id="place">Paris</h2><p id="description">Explore the city of lights!</p></div><div id="wildlifeTag">🐾 Look for animals!</div>
+</div>
+<div class="controls">
+<button onclick="toggleNight()">🌙 Day / Night</button>
+<button onclick="speak()">🐣 Meet Pooki AI</button>
+<button onclick="stopVoice()">🔇 Stop Voice</button>
+<button onclick="resetView()">↺ Reset View</button>
+<button onclick="fullScreen()">⛶ Fullscreen</button>
+<button onclick="enterVR()">🥽 VR Mode</button>
+</div>
+<p id="vrStatus" class="small" role="status" aria-live="polite">🥽 VR is ready to check. Open this page over HTTPS on a WebXR-compatible device.</p>
+<div id="guide">
+<strong>🐣 POOKI AI — Your Cute Explorer!</strong>
+<p id="guideStatus">Hiiii! Pick a destination and I'll show you around! 💚</p>
+</div>
+<div id="joystick">
+<button id="left" aria-label="Move left">◀</button>
+<button id="forward" aria-label="Move forward">▲</button>
+<button id="back" aria-label="Move backward">▼</button>
+<button id="right" aria-label="Move right">▶</button>
+</div>
+<p class="small">Drag inside the 3D window to look around. Hold the arrows to move. Try landscape mode on mobile. Immersive VR requires HTTPS, a WebXR-compatible browser and a supported headset.</p>
+</main>
+<script>
+const destinations=[
+{name:"Paris, France",emoji:"🗼",description:"Discover the Eiffel Tower and the beautiful City of Light.",fact:"The Eiffel Tower was built for the 1889 World's Fair.",sky:0x6bb8ed,ground:0x64704d,type:"paris"},
+{name:"Taj Mahal, India",emoji:"🕌",description:"Explore the magnificent white-marble monument in Agra.",fact:"The Taj Mahal was commissioned by Emperor Shah Jahan.",sky:0x80c7ed,ground:0xc6a879,type:"taj"},
+{name:"Japan",emoji:"⛩️",description:"Visit a Japanese village with Mount Fuji in the distance.",fact:"Mount Fuji is Japan's highest mountain.",sky:0x9acbed,ground:0x557d49,type:"japan"},
+{name:"Egypt",emoji:"🔺",description:"Travel through a golden desert beside ancient pyramids.",fact:"The Great Pyramid of Giza is one of the Seven Wonders of the Ancient World.",sky:0xe9b46e,ground:0xc9a05e,type:"egypt"},
+{name:"Maldives",emoji:"🏝️",description:"Relax on tropical islands surrounded by a bright blue ocean.",fact:"The Maldives is an island country in the Indian Ocean.",sky:0x68d4e9,ground:0x23b8bc,type:"maldives"},
+{name:"New York, USA",emoji:"🌆",description:"Explore a city filled with skyscrapers and glowing windows.",fact:"New York City has five boroughs.",sky:0x25365c,ground:0x30343b,type:"ny"},
+{name:"Switzerland",emoji:"🏔️",description:"Take in snowy Alpine peaks, green valleys and mountain cabins.",fact:"The Swiss Alps cover a large part of Switzerland.",sky:0x8bc8ef,ground:0x57834b,type:"swiss"},
+{name:"Great Wall, China",emoji:"🐉",description:"Follow the Great Wall as it winds over green mountain ridges.",fact:"The Great Wall is a network of fortifications built over many centuries.",sky:0x91c5e8,ground:0x55764b,type:"china"},
+{name:"Rio de Janeiro, Brazil",emoji:"🌴",description:"See Sugarloaf Mountain and the famous statue overlooking Rio.",fact:"Rio is famous for its Carnival celebrations.",sky:0x79c8ed,ground:0x368b54,type:"rio"},
+{name:"Dubai, UAE",emoji:"🏙️",description:"Explore a futuristic skyline rising above the desert.",fact:"The Burj Khalifa in Dubai is the world's tallest building.",sky:0x82c8ed,ground:0xc6a36b,type:"dubai"},
+{name:"Santorini, Greece",emoji:"🇬🇷",description:"Wander past white houses and blue domes above the sea.",fact:"Santorini is part of the Cyclades island group.",sky:0x77c5ed,ground:0xd8d1bd,type:"greece"},
+{name:"Sydney, Australia",emoji:"🦘",description:"Visit the harbour and see the famous sail-shaped Opera House.",fact:"The Sydney Opera House opened in 1973.",sky:0x7cc9ef,ground:0x4d8b54,type:"sydney"},
+{name:"Iceland",emoji:"🌌",description:"Discover icy mountains beneath a magical northern sky.",fact:"Auroras happen when charged particles interact with gases in Earth's atmosphere.",sky:0x182b55,ground:0x718b9a,type:"iceland"},
+{name:"Machu Picchu, Peru",emoji:"🏛️",description:"Explore the ancient Inca city high in the Andes mountains.",fact:"Machu Picchu sits high in the Peruvian Andes.",sky:0x83c4e8,ground:0x47794c,type:"peru"},
+{name:"London, UK",emoji:"🎡",description:"See Big Ben, the River Thames and London's historic skyline.",fact:"Big Ben is the nickname of the Great Bell at the Palace of Westminster.",sky:0x9abbd0,ground:0x567451,type:"london"},
+{name:"Bali, Indonesia",emoji:"🌺",description:"Explore tropical rice terraces, palms and an island temple.",fact:"Bali is an Indonesian island known for its temples and landscapes.",sky:0x75c8e7,ground:0x43834b,type:"bali"},
+{name:"Kenya Safari",emoji:"🦒",description:"Look across the savanna and spot wildlife in the distance.",fact:"Kenya's Maasai Mara is known for its wildlife and annual migration.",sky:0x9dc9e8,ground:0xb49a58,type:"kenya"},
+{name:"New Zealand",emoji:"🚤",description:"Sail through a dramatic fjord surrounded by tall green peaks.",fact:"Milford Sound is a famous fjord in New Zealand's South Island.",sky:0x8bc9e9,ground:0x477d54,type:"nz"},
+{name:"Petra, Jordan",emoji:"🏜️",description:"Visit the rose-coloured ancient city carved into rock.",fact:"Petra was an important trading city of the Nabataean kingdom.",sky:0xe5b47c,ground:0xb88a5b,type:"petra"},
+{name:"Venice, Italy",emoji:"🚤",description:"Glide through canals lined with colourful historic buildings.",fact:"Venice is built across a group of islands connected by bridges.",sky:0x8dc9e9,ground:0x4c9da0,type:"venice"}
+];
+
+let scene,camera,renderer,worldGroup,current=0,night=false;
+let animatedAnimals=[];
+let yaw=0,pitch=0,dragging=false,lastX=0,lastY=0;
+let move={forward:false,back:false,left:false,right:false};
+const canvas=document.getElementById("world");
+function material(color){return new THREE.MeshStandardMaterial({color,roughness:.85});}
+function addBox(x,y,z,w,h,d,color){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(color));m.position.set(x,y,z);worldGroup.add(m);return m;}
+function addSphere(x,y,z,r,color){let m=new THREE.Mesh(new THREE.SphereGeometry(r,20,16),material(color));m.position.set(x,y,z);worldGroup.add(m);return m;}
+function addCylinder(x,y,z,r1,r2,h,color,segments=16){let m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,segments),material(color));m.position.set(x,y,z);worldGroup.add(m);return m;}
+function addCone(x,y,z,r,h,color){let m=new THREE.Mesh(new THREE.ConeGeometry(r,h,6),material(color));m.position.set(x,y,z);worldGroup.add(m);return m;}
+function addTree(x,z,leaf=0x23813e){addCylinder(x,1,z,.15,.22,2,0x654126);addSphere(x,2.5,z,.9,leaf);}
+function addGround(color){let g=new THREE.Mesh(new THREE.PlaneGeometry(500,500),material(color));g.rotation.x=-Math.PI/2;g.position.y=-.1;worldGroup.add(g);}
+function addCloud(x,y,z){addSphere(x,y,z,2,0xffffff);addSphere(x+1.5,y,z,1.5,0xffffff);addSphere(x-1.5,y-.2,z,.9,0xffffff);}
+function addMountain(x,z,r,h,color){addCone(x,h/2,z,r,h,color);}
+function addWindows(x,z,w,h,cols=3,rows=4){for(let i=0;i<cols;i++)for(let j=0;j<rows;j++)addBox(x-w/2+.8+i*(w-1.6)/Math.max(1,cols-1),1.5+j*(h-2)/Math.max(1,rows-1),z,.45,.65,.12,0xffd66b);}
+
+// Cute low-poly 3D wildlife that appears in each destination.
+function animalMesh(group,geometry,color,x,y,z,sx=1,sy=1,sz=1){
+ const mesh=new THREE.Mesh(geometry,material(color));
+ mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);group.add(mesh);return mesh;
+}
+function makeAnimal(kind,x,z,scale=1){
+ const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(scale);worldGroup.add(g);
+ const sphere=new THREE.SphereGeometry(1,14,12);
+ const cyl=new THREE.CylinderGeometry(1,1,1,10);
+ const cone=new THREE.ConeGeometry(1,1,8);
+ const legParts=[];
+ const colors={
+  giraffe:[0xd99a35,0x6c3e20],elephant:[0x929da4,0x68747d],
+  zebra:[0xf1eee4,0x222a30],lion:[0xd69a43,0x8c4c20],
+  panda:[0xf4f1e8,0x20252b],deer:[0xb77b45,0x573821],
+  camel:[0xc69a62,0x75502d],turtle:[0x3b9662,0x236044],
+  dolphin:[0x7faec4,0x476f8b],penguin:[0x222c3a,0xf5f3e9],
+  kangaroo:[0xa9794d,0x62412e],monkey:[0x9b6745,0x4a3027],
+  peacock:[0x197c91,0x1c4c9a],llama:[0xe4d8b8,0x9e8b6c],
+  sheep:[0xe9e6da,0x665d56],fox:[0xd4773d,0x5b3b2a],
+  pigeon:[0x778b9b,0x394d5a],toucan:[0x24272c,0xf0a52c],
+  squirrel:[0xa96d3f,0x694126],goat:[0xe2ded0,0x827968],
+  crane:[0xf0eee5,0x252b32]
+ };
+ const c=colors[kind]||colors.deer, main=c[0],dark=c[1];
+ if(kind==="dolphin"||kind==="turtle"){
+  animalMesh(g,sphere,main,0,.9,0,1.15,.48,.58);
+  if(kind==="dolphin"){
+   animalMesh(g,cone,dark,0,1.12,-.85,.35,.7,.35).rotation.x=Math.PI;
+   animalMesh(g,sphere,main,0,.9,1.05,.35,.25,.8);
+   animalMesh(g,sphere,0xffffff,.45,1.05,-.35,.1,.1,.1);
+  }else{
+   animalMesh(g,sphere,dark,0,1.35,0,.78,.28,.72);
+   for(const [lx,lz] of [[-.7,-.4],[.7,-.4],[-.7,.4],[.7,.4]])animalMesh(g,sphere,main,lx,.65,lz,.2,.35,.2);
+   animalMesh(g,sphere,main,0,1.05,-.78,.28,.22,.28);
+  }
+ }else{
+  animalMesh(g,sphere,main,0,1.05,0,.95,.55,.48);
+  let headX=.78,headY=1.55,headZ=-.12;
+  if(kind==="giraffe"){
+   animalMesh(g,cyl,main,.55,1.9,-.12,.22,1.25,.22);
+   headY=2.65;headX=.65;
+   for(let i=0;i<7;i++)animalMesh(g,sphere,dark,-.45+(i%3)*.38,1.05+Math.floor(i/3)*.25,.45,.12,.12,.08);
+   for(let hx of [.48,.82]){animalMesh(g,cyl,dark,hx,2.95,-.1,.045,.35,.045);animalMesh(g,sphere,dark,hx,3.12,-.1,.09,.09,.09);}
+  }else if(kind==="elephant"){
+   headX=.82;headY=1.55;
+   animalMesh(g,sphere,main,.8,1.48,-.12,.55,.55,.5);
+   animalMesh(g,cyl,main,1.22,1.05,-.05,.18,.7,.18).rotation.z=-.28;
+   animalMesh(g,sphere,main,1.0,1.65,-.52,.48,.42,.16);
+  }else if(kind==="camel"){
+   animalMesh(g,sphere,main,-.2,1.65,.05,.32,.42,.3);
+   animalMesh(g,sphere,main,.25,1.62,.05,.32,.42,.3);
+  }else if(kind==="penguin"){
+   animalMesh(g,sphere,dark,0,1.2,0,.68,.9,.5);
+   animalMesh(g,sphere,0xf4f1e8,.2,1.15,-.43,.42,.62,.12);
+   animalMesh(g,cone,0xf3a33b,.78,1.55,-.1,.16,.3,.16).rotation.z=-Math.PI/2;
+  }else if(kind==="kangaroo"){
+   animalMesh(g,sphere,main,.55,1.5,-.05,.35,.62,.35);
+   animalMesh(g,sphere,main,-.8,.7,.15,.9,.18,.18);
+   animalMesh(g,sphere,main,1.0,1.85,-.05,.18,.55,.18);
+  }else if(kind==="panda"){
+   animalMesh(g,sphere,main,.82,1.55,-.08,.48,.46,.42);
+   animalMesh(g,sphere,dark,.78,1.68,-.46,.18,.2,.08);
+   animalMesh(g,sphere,dark,1.0,1.68,-.46,.18,.2,.08);
+  }else if(kind==="lion"){
+   animalMesh(g,sphere,dark,.8,1.5,-.05,.62,.62,.58);
+   headX=.85;headY=1.55;
+  }else{
+   animalMesh(g,sphere,main,.8,1.55,-.08,.42,.42,.38);
+  }
+  if(!["penguin"].includes(kind)){
+   animalMesh(g,sphere,main,headX,headY,headZ,.38,.34,.34);
+   animalMesh(g,sphere,main,headX-.08,headY+.35,headZ-.02,.14,.28,.13);
+   animalMesh(g,sphere,main,headX+.2,headY+.35,headZ-.02,.14,.28,.13);
+   animalMesh(g,sphere,0xffffff,headX+.22,headY+.08,-.4,.09,.09,.06);
+   animalMesh(g,sphere,0x171717,headX+.25,headY+.08,-.45,.04,.04,.03);
+  }
+  for(const lx of [-.58,.58])for(const lz of [-.28,.28]){
+   const leg=animalMesh(g,cyl,dark,lx,.48,lz,.12,.75,.12);
+   legParts.push(leg);
+  }
+  animalMesh(g,sphere,dark,-1.0,1.15,.1,.35,.12,.12);
+  if(kind==="zebra")for(let i=0;i<5;i++)animalMesh(g,cyl,0x20252b,-.35+i*.28,1.05,-.43,.045,.8,.045).rotation.z=Math.PI/2;
+  if(kind==="peacock"){animalMesh(g,sphere,0x197c91,-.9,1.5,.2,.7,.85,.12);for(let i=0;i<5;i++)animalMesh(g,sphere,0x35b9a4,-1.35+i*.2,2.0,.18,.18,.18,.1);}
+  if(kind==="toucan")animalMesh(g,cone,0xffa51f,1.18,1.55,-.1,.2,.55,.2).rotation.z=-Math.PI/2;
+ }
+ g.userData.legs=legParts;g.userData.phase=Math.random()*6;
+ animatedAnimals.push(g);return g;
+}
+const wildlife={
+ paris:["pigeon"],taj:["monkey","peacock"],japan:["deer","crane"],egypt:["camel"],
+ maldives:["turtle","dolphin"],ny:["pigeon","squirrel"],swiss:["goat","deer"],
+ china:["panda"],rio:["toucan","monkey"],dubai:["camel"],greece:["dolphin"],
+ sydney:["kangaroo"],iceland:["fox"],peru:["llama"],london:["pigeon","squirrel"],
+ bali:["monkey","peacock"],kenya:["giraffe","elephant","zebra","lion"],
+ nz:["sheep","dolphin"],petra:["camel"],venice:["pigeon"]
+};
+function addDestinationAnimals(type){
+ animatedAnimals=[];
+ const kinds=wildlife[type]||["deer"];
+ const spots=[[-7,-12],[7,-19],[-12,-28],[13,-35]];
+ kinds.forEach((kind,i)=>makeAnimal(kind,spots[i%spots.length][0],spots[i%spots.length][1],kind==="giraffe"||kind==="elephant"?1.05:.9));
+ const labels={giraffe:"Giraffe",elephant:"Elephant",zebra:"Zebra",lion:"Lion",panda:"Panda",deer:"Deer",camel:"Camel",turtle:"Sea turtle",dolphin:"Dolphin",penguin:"Penguin",kangaroo:"Kangaroo",monkey:"Monkey",peacock:"Peacock",llama:"Llama",sheep:"Sheep",fox:"Fox",pigeon:"Pigeon",toucan:"Toucan",squirrel:"Squirrel",goat:"Mountain goat",crane:"Crane"};
+ document.getElementById("wildlifeTag").textContent="🐾 Wildlife: "+kinds.map(k=>labels[k]||k).join(" • ");
+}
+
+function buildParis(){addCylinder(0,11,-18,1.1,1.8,22,0x987c58);for(let y=3;y<20;y+=4){let r=1.8-(y/20)*1.2;addCylinder(0,y,-18,r,r*.8,4,0x987c58);}addCone(0,23,-18,.8,3,0x987c58);for(let x=-18;x<=18;x+=7){addBox(x,4,-35,5,8,5,0xd6aa83);addBox(x,4,8,5,8,5,0xd6aa83);}for(let x=-20;x<=20;x+=5)addTree(x,15);addCloud(-12,18,-30);addCloud(14,21,-40);}
+function buildTaj(){addBox(0,1.5,-20,22,3,22,0xd5d2c5);addBox(0,7,-20,12,11,12,0xf0eee1);for(let x of [-6,6])for(let z of [-26,-14]){addCylinder(x,6,z,.8,.8,12,0xf2eee3);addSphere(x,12,z,.9,0xf2eee3);}addSphere(0,13,-20,5,0xf5f1e8);addCone(0,19,-20,1,3,0xd9bd75);for(let x of [-14,14])for(let z of [-30,-10]){addCylinder(x,6,z,.6,.8,12,0xe7e1d3);addCone(x,13,z,1,2,0xd9bd75);}for(let z=-45;z<0;z+=10){addBox(0,.2,z,3,.3,8,0x35a8c4);for(let x of [-10,10])addTree(x,z);}}
+function buildJapan(){addBox(0,3,-15,13,6,10,0x9c5a36);addBox(0,7,-15,16,1,13,0x40332b);for(let y=8;y<14;y+=2)addBox(0,y,-15,13-(y-8),.6,10-(y-8),0x40332b);addCone(0,18,-15,4,5,0x40332b);for(let x of [-18,18])for(let z of [-28,-8])addTree(x,z,0x3c9b55);for(let i=0;i<5;i++)addSphere(-18+i*9,2,-65,1.5,0xf1a9c0);for(let y=0;y<5;y++)addCone(0,10+y*3,-90-y*2,18-y*2,5,0x7895a9);addSphere(0,24,-100,5,0xffffff);}
+function buildEgypt(){for(let x of [-18,0,18])addCone(x,12,-25,13,24,0xd8b36e);for(let x=-30;x<=30;x+=7)addBox(x,3,-48,4,6,3,0xb89a64);addSphere(-30,12,-35,2,0xffe0a0);}
+function buildMaldives(){addBox(0,.2,-15,60,.4,60,0x20b7c0);for(let x of [-18,-9,0,9,18]){addCylinder(x,.4,-18,.6,2,1,0xe9d6a5);addCylinder(x,2,-18,.12,.12,3,0x76502b);addSphere(x,4,-18,2,0x168d50);}addBox(0,2,-18,9,.4,5,0x9a6040);for(let x of [-5,5])addCylinder(x,2,-18,.1,.1,3,0x76502b);addCloud(-12,17,-25);addCloud(12,15,-35);}
+function buildNY(){for(let x=-28;x<=28;x+=8){let h=8+Math.random()*17;addBox(x,h/2,-25,5,h,5,0x526477);addWindows(x,-22,4,h);}addBox(0,13,-40,3,26,3,0x647b91);addCone(0,28,-40,1.5,5,0x647b91);for(let x=-20;x<=20;x+=10)addBox(x,5,5,6,10,5,0x35495d);}
+function buildSwiss(){addMountain(-18,-35,17,30,0xe5edf1);addMountain(5,-45,22,38,0xdce8ed);addMountain(25,-25,14,25,0xb9ccd5);addCone(5,-25,-45,8,8,0xffffff);addBox(-5,2,-12,8,4,7,0x805333);addCone(-5,5,-12,6,3,0x633e2a);for(let x=-25;x<30;x+=9)addTree(x,8);}
+function buildChina(){for(let z=-70;z<0;z+=12){addMountain(-22,z,13,22,0x66865b);addMountain(22,z-5,13,20,0x789563);addBox(0,7,z,7,1.1,13,0xc5a77a);addBox(0,8,z-6,7,2,1,0xb48e61);for(let x of [-3,3])addBox(x,9,z,1,3,1,0xb48e61);}for(let x of [-18,18])addTree(x,-10);}
+function buildRio(){addMountain(-18,-35,15,30,0x3e7652);addMountain(20,-40,17,34,0x477e59);addCylinder(0,11,-35,1.2,1.5,22,0xd8d0b7);addSphere(0,23,-35,2,0xd8d0b7);addBox(0,8,-35,1,13,1,0xd8d0b7);addBox(0,15,-35,12,1,1,0xd8d0b7);for(let x=-25;x<=25;x+=8)addTree(x,8);}
+function buildDubai(){addBox(0,17,-30,7,34,7,0x9bb7c8);addBox(0,30,-30,3,20,3,0x9bb7c8);addCone(0,43,-30,1.5,8,0xdce8ed);for(let x=-25;x<=25;x+=9){let h=8+Math.abs(x%3)*5;addBox(x,h/2,-25,6,h,6,0x879eae);addWindows(x,-21,5,h);}addGround(0xc6a36b);}
+function buildGreece(){addBox(0,3,-25,18,6,12,0xf4f0df);addBox(0,6.5,-25,20,1,14,0x2866a2);for(let x of [-6,0,6]){addCylinder(x,8,-25,1.8,1.8,3,0xffffff);addSphere(x,9.5,-25,1.8,0x2866a2);}addBox(-15,2,-15,7,4,7,0xf4f0df);addBox(15,2,-18,7,4,7,0xf4f0df);addBox(0,.1,-35,70,.2,50,0x258eb1);}
+function buildSydney(){addBox(0,.1,-30,70,.2,45,0x278eae);addBox(-8,2,-25,16,1,9,0xe8e2d2);for(let i=0;i<4;i++){let roof=addSphere(-10+i*5,5,-27,3,0xf4f0e8);roof.scale.set(1,.35,1);}addBox(18,8,-35,3,16,3,0x9caaad);for(let x=-25;x<=25;x+=10)addTree(x,0);}
+function buildIceland(){addMountain(-18,-35,17,30,0x718b9a);addMountain(18,-45,19,35,0x879da8);addMountain(0,-65,14,28,0x536e83);addSphere(-12,20,-40,2,0x6fffd1);addSphere(-8,22,-42,2,0x5ee5c7);addSphere(0,18,-48,2,0x9c8cff);addCloud(15,24,-35);}
+function buildPeru(){for(let x=-25;x<=25;x+=12)addMountain(x,-40,15,26,0x557c55);for(let x=-12;x<=12;x+=6)for(let z=-22;z<-5;z+=6){addBox(x,2,z,5,4,5,0x9a8b70);addBox(x,4.2,z,5,.5,5,0x786d59);}addBox(0,.2,-15,35,.3,25,0x648c55);}
+function buildLondon(){addBox(0,10,-30,5,20,5,0xb9a98a);addBox(0,21,-30,7,3,7,0x8f8068);addCone(0,27,-30,3,9,0x756b5e);addBox(0,4,-30,2,8,2,0x9f8d70);addBox(0,9,-30,8,1,1,0x9f8d70);addBox(0,.2,0,60,.4,15,0x3389a0);for(let x=-25;x<=25;x+=10)addTree(x,10);}
+function buildBali(){addMountain(0,-45,23,35,0x4d7550);addBox(0,1,-20,40,2,35,0x3e9c58);for(let z=-35;z<0;z+=7){addBox(0,2,z,42,.2,.4,0xb8aa63);}addBox(0,3,-18,9,6,7,0x8c5a35);addCone(0,8,-18,7,5,0x40332b);for(let x of [-20,20])addTree(x,-10);}
+function buildKenya(){addBox(0,.1,-25,90,.2,70,0xb99a5a);addMountain(-25,-55,15,24,0x8c7652);addMountain(25,-60,18,30,0x8c7652);for(let x of [-18,0,18]){addCylinder(x,2,-22,.25,.4,4,0x76502b);addSphere(x,5,-22,2.5,0x3f793c);}addSphere(10,2,-15,1.2,0xc49c65);addCylinder(10,3,-15,.5,.5,3,0xc49c65);}
+function buildNZ(){addBox(0,.1,-30,70,.2,60,0x2b8498);addMountain(-20,-35,18,36,0x456f58);addMountain(15,-45,20,42,0x557e60);addMountain(0,-65,13,30,0x78918d);addCloud(-12,20,-35);addCloud(14,23,-50);}
+function buildPetra(){addBox(0,.1,-25,80,.2,60,0xc18e60);addBox(0,7,-35,18,14,2,0xb66e52);addBox(0,12,-35,12,2,2,0xd6a07a);addCylinder(0,17,-35,2,2,6,0xc78a64);addCone(0,21,-35,3,3,0xc78a64);for(let x of [-25,-18,18,25])addMountain(x,-38,10,23,0xb77b58);}
+function buildVenice(){addBox(0,.1,-25,70,.2,55,0x258ca8);for(let x of [-18,-6,6,18]){addBox(x,3,-28,7,6,9,0xd9a17a);addBox(x,6.5,-28,8,1,10,0xb96e55);addBox(x,3,-23,2,3,.2,0x5c7890);}addBox(0,.3,-10,4,.6,55,0xd5c7a7);addBox(0,.3,-40,4,.6,25,0xd5c7a7);}
+const builders={paris:buildParis,taj:buildTaj,japan:buildJapan,egypt:buildEgypt,maldives:buildMaldives,ny:buildNY,swiss:buildSwiss,china:buildChina,rio:buildRio,dubai:buildDubai,greece:buildGreece,sydney:buildSydney,iceland:buildIceland,peru:buildPeru,london:buildLondon,bali:buildBali,kenya:buildKenya,nz:buildNZ,petra:buildPetra,venice:buildVenice};
+function buildWorld(index){
+current=index;const d=destinations[index];
+document.getElementById("place").textContent=d.emoji+" "+d.name;
+document.getElementById("description").textContent=d.description;
+document.querySelectorAll(".destination").forEach((b,i)=>b.classList.toggle("active",i===index));
+if(worldGroup)scene.remove(worldGroup);
+worldGroup=new THREE.Group();scene.add(worldGroup);
+addGround(d.ground);builders[d.type]();addDestinationAnimals(d.type);
+scene.background=new THREE.Color(night?0x081323:d.sky);
+scene.fog=new THREE.Fog(scene.background,60,180);
+worldGroup.add(new THREE.HemisphereLight(0xffffff,0x777777,night?.5:1.5));
+const sun=new THREE.DirectionalLight(0xffffff,night?.35:1.4);sun.position.set(20,40,20);worldGroup.add(sun);
+resetView();
+}
+function speak(){
+const d=destinations[current];
+if(!("speechSynthesis" in window)){document.getElementById("guideStatus").textContent="Oops! Voice isn't supported in this browser.";return;}
+speechSynthesis.cancel();
+const msg=new SpeechSynthesisUtterance(`Hiiii, traveller! Welcome to ${d.name}! Yay! Let's explore this amazing place together! ${d.fact} Hope you have a super fun journey with PAVI Travellers!`);
+const voices=speechSynthesis.getVoices();
+const cuteVoice=voices.find(v=>/Google UK English Female/i.test(v.name))||voices.find(v=>/Samantha/i.test(v.name))||voices.find(v=>/Jenny/i.test(v.name))||voices.find(v=>v.lang.startsWith("en"));
+if(cuteVoice)msg.voice=cuteVoice;msg.pitch=1.35;msg.rate=1.02;msg.volume=1;
+msg.onstart=()=>document.getElementById("guideStatus").textContent="Yayyy! Pooki is speaking! 💚";
+msg.onend=()=>document.getElementById("guideStatus").textContent="That was fun! Where shall we explore next? 🐣";
+msg.onerror=()=>document.getElementById("guideStatus").textContent="Oops! My voice couldn't start. Try again!";
+speechSynthesis.speak(msg);
+}
+function stopVoice(){if("speechSynthesis"in window)speechSynthesis.cancel();document.getElementById("guideStatus").textContent="Voice guide paused. See you soon! 💚";}
+function resetView(){yaw=0;pitch=0;camera.position.set(0,2,8);camera.rotation.set(0,0,0);}
+function init(){
+scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(70,1,.1,500);
+renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.xr.enabled=true;
+renderer.xr.setReferenceSpaceType("local-floor");
+document.getElementById("count").textContent=`(${destinations.length} places to explore)`;
+destinations.forEach((d,i)=>{let b=document.createElement("button");b.className="destination";b.textContent=d.emoji+" "+d.name;b.onclick=()=>buildWorld(i);document.getElementById("destinations").appendChild(b);});
+buildWorld(0);resize();window.addEventListener("resize",resize);
+canvas.addEventListener("pointerdown",e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener("pointerup",()=>dragging=false);canvas.addEventListener("pointercancel",()=>dragging=false);
+canvas.addEventListener("pointermove",e=>{if(!dragging)return;yaw-=(e.clientX-lastX)*.005;pitch-=(e.clientY-lastY)*.005;pitch=Math.max(-1.2,Math.min(1.2,pitch));lastX=e.clientX;lastY=e.clientY;});
+["forward","back","left","right"].forEach(k=>{let b=document.getElementById(k);b.addEventListener("pointerdown",e=>{e.preventDefault();move[k]=true;});["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>move[k]=false));});
+animate();
+}
+function resize(){let w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+function animate(){let clock=0;renderer.setAnimationLoop(()=>{clock+=.035;animatedAnimals.forEach((a,i)=>{a.position.y=Math.sin(clock*2+a.userData.phase)*.07;if(a.userData.legs.length)a.userData.legs.forEach((leg,j)=>{leg.rotation.x=Math.sin(clock*4+a.userData.phase+j)*.18;});});if(move.forward)camera.translateZ(-.15);if(move.back)camera.translateZ(.15);if(move.left)camera.translateX(-.15);if(move.right)camera.translateX(.15);if(!renderer.xr.isPresenting){camera.rotation.order="YXZ";camera.rotation.y=yaw;camera.rotation.x=pitch;}renderer.render(scene,camera);});}
+function toggleNight(){night=!night;buildWorld(current);}
+function fullScreen(){let el=document.getElementById("viewer");if(!document.fullscreenElement)el.requestFullscreen?.();else document.exitFullscreen?.();}
+async function enterVR(){
+ const status=document.getElementById("vrStatus");
+ const button=[...document.querySelectorAll(".controls button")].find(b=>b.textContent.includes("VR Mode"));
+ const say=(message)=>{status.textContent=message;};
+ try{
+  if(!window.isSecureContext){
+   say("🔒 VR needs a secure HTTPS page. Opening this HTML as a local file will not enable WebXR.");
+   return;
+  }
+  if(!navigator.xr){
+   say("📱 WebXR is not available in this browser. Try a WebXR-compatible Android browser with a supported VR headset.");
+   return;
+  }
+  say("🔎 Checking VR headset support…");
+  const supported=await navigator.xr.isSessionSupported("immersive-vr");
+  if(!supported){
+   say("🥽 This browser/device does not currently support immersive VR. A compatible headset and WebXR browser are required.");
+   return;
+  }
+  say("🚀 Starting VR…");
+  const session=await navigator.xr.requestSession("immersive-vr",{
+   optionalFeatures:["local-floor","bounded-floor"]
+  });
+  await renderer.xr.setSession(session);
+  say("✅ VR is active! Move your head to look around. Use the on-screen movement controls when available.");
+  if(button)button.textContent="🥽 VR Active";
+  session.addEventListener("end",()=>{
+   say("VR session ended. You can enter VR again whenever you're ready.");
+   if(button)button.textContent="🥽 VR Mode";
+  },{once:true});
+ }catch(e){
+  console.error("VR startup failed:",e);
+  say("⚠️ VR could not start. Check HTTPS, browser support, headset connection and browser permissions, then try again.");
+  if(button)button.textContent="🥽 VR Mode";
+ }
+}
+init();
+</script>
+</body>
+</html>
